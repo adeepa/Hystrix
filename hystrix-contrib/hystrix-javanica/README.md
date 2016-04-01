@@ -51,6 +51,14 @@ It doesn't matter which approach you use to create proxies in Spring, javanica w
 
 More about Spring AOP + AspectJ read [here] (http://docs.spring.io/spring/docs/current/spring-framework-reference/html/aop.html)
 
+## Aspect weaving
+Javanica supports two weaving modes: compile and runtime. Load time weaving hasn't been tested but it should work. If you tried LTW mode and got any problems then raise javanica issue or create pull request with fix.
+- CTW. To use CTW mode you need to use specific jar version: **hystrix-javanica-ctw-X.Y.Z** . This jar is assembled with aspects compiled with using [AJC](https://eclipse.org/aspectj/doc/next/devguide/ajc-ref.html) compiler. If you will try to use regular hystrix-javanica-X.Y.Z with CTW then you get ``` NoSuchMethodError aspectOf() ``` at runtime from building with iajc. Also, you need to start your app with using java property: ```-DWeavingMode=compile```.
+**NOTE**: Javanica depends on aspectj library and uses internal features of aspectj and these features aren't provided as a part of open API thus it can change from version to version. Javanica tested with latest aspectj version 1.8.7. If you updated aspectj version and noticed any issues then please don't hestitate to create new issue or contribute.
+- RTW works, you can use regular hystrix-javanica-X.Y.Z
+- LTM hasn't been tested but it should work fine.
+
+
 # How to use
 
 ## Hystrix command
@@ -97,21 +105,34 @@ The return type of command method should be Future that indicates that a command
 
 ## Reactive Execution
 
-To performe "Reactive Execution" you should return an instance of `ObservableResult` in your command method as in the exapmple below:
+To performe "Reactive Execution" you should return an instance of `Observable` in your command method as in the exapmple below:
 
 ```java
     @HystrixCommand
     public Observable<User> getUserById(final String id) {
-        return new ObservableResult<User>() {
-            @Override
-            public User invoke() {
-                return userResource.getUserById(id);
-            }
-        };
+        return Observable.create(new Observable.OnSubscribe<User>() {
+                @Override
+                public void call(Subscriber<? super User> observer) {
+                    try {
+                        if (!observer.isUnsubscribed()) {
+                            observer.onNext(new User(id, name + id));
+                            observer.onCompleted();
+                        }
+                    } catch (Exception e) {
+                        observer.onError(e);
+                    }
+                }
+            });
     }
 ```
 
 The return type of command method should be `Observable`.
+
+HystrixObservable interface provides two methods: ```observe()``` - eagerly starts execution of the command the same as ``` HystrixCommand#queue()``` and ```HystrixCommand#execute()```; ```toObservable()``` - lazily starts execution of the command only once the Observable is subscribed to. To control this behaviour and swith between two modes ```@HystrixCommand``` provides specific parameter called ```observableExecutionMode```.
+```@HystrixCommand(observableExecutionMode = EAGER)``` indicates that ```observe()``` method should be used to execute observable command
+```@HystrixCommand(observableExecutionMode = LAZY)``` indicates that ```toObservable()``` should be used to execute observable command
+
+**NOTE: EAGER mode is used by default**
 
 ## Fallback
 
@@ -128,7 +149,7 @@ Graceful degradation can be achieved by declaring name of fallback method in `@H
     }
 ```
 
-**_Its important to remember that Hystrix command and fallback should be placed in the same class and have same method signature_**.
+**_Its important to remember that Hystrix command and fallback should be placed in the same class and have same method signature (optional parameter for failed execution exception)_**.
 
 Fallback method can have any access modifier. Method `defaultUser` will be used to process fallback logic in a case of any errors. If you need to run fallback method `defaultUser` as separate Hystrix command then you need to annotate it with `HystrixCommand` annotation as below:
 ```java
@@ -161,8 +182,140 @@ If fallback method was marked with `@HystrixCommand` then this fallback method (
     }
 ```
 
+Javanica provides an ability to get execution exception (exception thrown that caused the failure of a command) within a fallback is being executed. A fallback method signature can be extended with an additional parameter in order to get an exception thrown by a command. Javanica exposes execution exception through additional parameter of fallback method. Execution exception is derived by calling  method getFailedExecutionException() as in vanilla hystrix.
+
+Example:
+
+```java
+        @HystrixCommand(fallbackMethod = "fallback1")
+        User getUserById(String id) {
+            throw new RuntimeException("getUserById command failed");
+        }
+
+        @HystrixCommand(fallbackMethod = "fallback2")
+        User fallback1(String id, Throwable e) {
+            assert "getUserById command failed".equals(e.getMessage());
+            throw new RuntimeException("fallback1 failed");
+        }
+
+        @HystrixCommand(fallbackMethod = "fallback3")
+        User fallback2(String id) {
+            throw new RuntimeException("fallback2 failed");
+        }
+
+        @HystrixCommand(fallbackMethod = "staticFallback")
+        User fallback3(String id, Throwable e) {
+            assert "fallback2 failed".equals(e.getMessage());
+            throw new RuntimeException("fallback3 failed");
+        }
+
+        User staticFallback(String id, Throwable e) {
+            assert "fallback3 failed".equals(e.getMessage());
+            return new User("def", "def");
+        }
+        
+        // test
+        @Test
+        public void test() {
+        assertEquals("def", getUserById("1").getName());
+        }
+```
+As you can see, the additional ```Throwable``` parameter is not mandatory and can be omitted or specified.
+A fallback gets an exception thrown that caused a failure of parent, thus the ```fallback3``` gets exception thrown by ```fallback2```, no by ```getUserById``` command.
+
+### Async/Sync fallback.
+A fallback can be async or sync, at certain cases it depends on command execution type, below listed all possible uses :
+
+**Supported**
+
+case 1: sync command, sync fallback
+
+```java
+        @HystrixCommand(fallbackMethod = "fallback")
+        User getUserById(String id) {
+            throw new RuntimeException("getUserById command failed");
+        }
+
+        @HystrixCommand
+        User fallback(String id) {
+            return new User("def", "def");
+        }
+```
+
+case 2: async command, sync fallback
+
+```java
+        @HystrixCommand(fallbackMethod = "fallback")
+        Future<User> getUserById(String id) {
+            throw new RuntimeException("getUserById command failed");
+        }
+
+        @HystrixCommand
+        User fallback(String id) {
+            return new User("def", "def");
+        }
+```
+
+case 3: async command, async fallback
+```java
+        @HystrixCommand(fallbackMethod = "fallbackAsync")
+        Future<User> getUserById(String id) {
+            throw new RuntimeException("getUserById command failed");
+        }
+
+        @HystrixCommand
+        Future<User> fallbackAsync(String id) {
+            return new AsyncResult<User>() {
+                @Override
+                public User invoke() {
+                    return new User("def", "def");
+                }
+            };
+        }
+```
+
+**Unsupported(prohibited)**
+
+case 1: sync command, async fallback command. This case isn't supported because in the essence a caller does not get a future buy calling ```getUserById``` and future is provided by fallback isn't available for a caller anyway, thus execution of a command forces to complete ```fallbackAsync``` before a caller gets a result, having said it turns out there is no benefits of async fallback execution. But it can be convenient if a fallback is used for both sync and async commands, if you see this case is very helpful and will be nice to have then create issue to add support for this case.
+
+```java
+        @HystrixCommand(fallbackMethod = "fallbackAsync")
+        User getUserById(String id) {
+            throw new RuntimeException("getUserById command failed");
+        }
+
+        @HystrixCommand
+        Future<User> fallbackAsync(String id) {
+            return new AsyncResult<User>() {
+                @Override
+                public User invoke() {
+                    return new User("def", "def");
+                }
+            };
+        }
+```
+case 2: sync command, async fallback. This case isn't supported for the same reason as for the case 1.
+
+```java
+        @HystrixCommand(fallbackMethod = "fallbackAsync")
+        User getUserById(String id) {
+            throw new RuntimeException("getUserById command failed");
+        }
+
+        Future<User> fallbackAsync(String id) {
+            return new AsyncResult<User>() {
+                @Override
+                public User invoke() {
+                    return new User("def", "def");
+                }
+            };
+        }
+```
+
+Same restrictions are imposed on using observable feature in javanica.
+
 ## Error Propagation
-Based on [this](https://github.com/Netflix/Hystrix/wiki/How-To-Use#ErrorPropagation) description, `@HystrixCommand` has an ability to specify exceptions types which should be ignored and wrapped to throw in `HystrixBadRequestException`.
+Based on [this](https://github.com/Netflix/Hystrix/wiki/How-To-Use#ErrorPropagation) description, `@HystrixCommand` has an ability to specify exceptions types which should be ignored.
 
 ```java
     @HystrixCommand(ignoreExceptions = {BadRequestException.class})
@@ -171,7 +324,7 @@ Based on [this](https://github.com/Netflix/Hystrix/wiki/How-To-Use#ErrorPropagat
     }
 ```
 
-If `userResource.getUserById(id);` throws an exception which type is _BadRequestException_ then this exception will be wrapped in `HystrixBadRequestException` and will not affect metrics and will not trigger fallback logic.
+If `userResource.getUserById(id);` throws an exception which type is _BadRequestException_ then this exception will be thrown without triggering fallback logic.
 
 ## Request Cache
 
@@ -509,6 +662,6 @@ Example:
 #Development Status and Future
 Please create an issue if you need a feature or you detected some bugs. Thanks
 
-**Note**: Javaniva 1.4.+ is updated more frequently than 1.3.+ hence 1.4+ is more stable. 
+**Note**: Javanica 1.4.+ is updated more frequently than 1.3.+ hence 1.4+ is more stable. 
 
 **It's recommended to use Javaniva 1.4.+** 

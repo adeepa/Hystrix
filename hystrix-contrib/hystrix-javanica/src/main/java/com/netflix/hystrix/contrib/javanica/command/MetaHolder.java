@@ -15,13 +15,19 @@
  */
 package com.netflix.hystrix.contrib.javanica.command;
 
+import com.google.common.collect.ImmutableList;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCollapser;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
+import com.netflix.hystrix.contrib.javanica.annotation.ObservableExecutionMode;
 import com.netflix.hystrix.contrib.javanica.command.closure.Closure;
+import org.aspectj.lang.JoinPoint;
 
+import javax.annotation.concurrent.Immutable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import javax.annotation.concurrent.Immutable;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Simple immutable holder to keep all necessary information about current method to build Hystrix command.
@@ -34,6 +40,8 @@ public class MetaHolder {
 
     private final Method method;
     private final Method cacheKeyMethod;
+    private final Method ajcMethod;
+    private final Method fallbackMethod;
     private final Object obj;
     private final Object proxyObj;
     private final Object[] args;
@@ -42,12 +50,21 @@ public class MetaHolder {
     private final String defaultCommandKey;
     private final String defaultCollapserKey;
     private final ExecutionType executionType;
+    private final boolean extendedFallback;
     private final ExecutionType collapserExecutionType;
+    private final ExecutionType fallbackExecutionType;
+    private final boolean fallback;
+    private boolean extendedParentFallback;
+    private final JoinPoint joinPoint;
+    private final boolean observable;
+    private final ObservableExecutionMode observableExecutionMode;
 
     private MetaHolder(Builder builder) {
         this.hystrixCommand = builder.hystrixCommand;
         this.method = builder.method;
         this.cacheKeyMethod = builder.cacheKeyMethod;
+        this.fallbackMethod = builder.fallbackMethod;
+        this.ajcMethod = builder.ajcMethod;
         this.obj = builder.obj;
         this.proxyObj = builder.proxyObj;
         this.args = builder.args;
@@ -58,6 +75,13 @@ public class MetaHolder {
         this.hystrixCollapser = builder.hystrixCollapser;
         this.executionType = builder.executionType;
         this.collapserExecutionType = builder.collapserExecutionType;
+        this.fallbackExecutionType = builder.fallbackExecutionType;
+        this.joinPoint = builder.joinPoint;
+        this.extendedFallback = builder.extendedFallback;
+        this.fallback = builder.fallback;
+        this.extendedParentFallback = builder.extendedParentFallback;
+        this.observable = builder.observable;
+        this.observableExecutionMode = builder.observableExecutionMode;
     }
 
     public static Builder builder() {
@@ -78,6 +102,10 @@ public class MetaHolder {
 
     public Method getCacheKeyMethod() {
         return cacheKeyMethod;
+    }
+
+    public Method getAjcMethod() {
+        return ajcMethod;
     }
 
     public Object getObj() {
@@ -120,8 +148,64 @@ public class MetaHolder {
         return method.getParameterTypes();
     }
 
-    public boolean isCollapser(){
-        return hystrixCollapser!=null;
+    public boolean isCollapserAnnotationPresent() {
+        return hystrixCollapser != null;
+    }
+
+    public boolean isCommandAnnotationPresent() {
+        return hystrixCommand != null;
+    }
+
+    public JoinPoint getJoinPoint() {
+        return joinPoint;
+    }
+
+    public Method getFallbackMethod() {
+        return fallbackMethod;
+    }
+
+    public boolean hasFallbackMethod() {
+        return fallbackMethod != null;
+    }
+
+    public boolean isExtendedParentFallback() {
+        return extendedParentFallback;
+    }
+
+    public boolean hasFallbackMethodCommand() {
+        return fallbackMethod != null && fallbackMethod.isAnnotationPresent(HystrixCommand.class);
+    }
+
+    public boolean isFallback() {
+        return fallback;
+    }
+
+    public boolean isExtendedFallback() {
+        return extendedFallback;
+    }
+
+    public ExecutionType getFallbackExecutionType() {
+        return fallbackExecutionType;
+    }
+
+    public List<HystrixProperty> getCommandProperties() {
+        return isCommandAnnotationPresent() ? ImmutableList.copyOf(hystrixCommand.commandProperties()) : Collections.<HystrixProperty>emptyList();
+    }
+
+    public List<HystrixProperty> getCollapserProperties() {
+        return isCollapserAnnotationPresent() ? ImmutableList.copyOf(hystrixCollapser.collapserProperties()) : Collections.<HystrixProperty>emptyList();
+    }
+
+    public List<HystrixProperty> getThreadPoolProperties() {
+        return isCommandAnnotationPresent() ? ImmutableList.copyOf(hystrixCommand.threadPoolProperties()) : Collections.<HystrixProperty>emptyList();
+    }
+
+    public boolean isObservable() {
+        return observable;
+    }
+
+    public ObservableExecutionMode getObservableExecutionMode() {
+        return observableExecutionMode;
     }
 
     public static final class Builder {
@@ -130,6 +214,8 @@ public class MetaHolder {
         private HystrixCommand hystrixCommand;
         private Method method;
         private Method cacheKeyMethod;
+        private Method fallbackMethod;
+        private Method ajcMethod;
         private Object obj;
         private Object proxyObj;
         private Closure closure;
@@ -139,6 +225,13 @@ public class MetaHolder {
         private String defaultCollapserKey;
         private ExecutionType executionType;
         private ExecutionType collapserExecutionType;
+        private ExecutionType fallbackExecutionType;
+        private boolean extendedFallback;
+        private boolean fallback;
+        private boolean extendedParentFallback;
+        private boolean observable;
+        private JoinPoint joinPoint;
+        private ObservableExecutionMode observableExecutionMode;
 
         public Builder hystrixCollapser(HystrixCollapser hystrixCollapser) {
             this.hystrixCollapser = hystrixCollapser;
@@ -157,6 +250,31 @@ public class MetaHolder {
 
         public Builder cacheKeyMethod(Method cacheKeyMethod) {
             this.cacheKeyMethod = cacheKeyMethod;
+            return this;
+        }
+
+        public Builder fallbackMethod(Method fallbackMethod) {
+            this.fallbackMethod = fallbackMethod;
+            return this;
+        }
+
+        public Builder fallbackExecutionType(ExecutionType fallbackExecutionType) {
+            this.fallbackExecutionType = fallbackExecutionType;
+            return this;
+        }
+
+        public Builder fallback(boolean fallback) {
+            this.fallback = fallback;
+            return this;
+        }
+
+        public Builder extendedParentFallback(boolean extendedParentFallback) {
+            this.extendedParentFallback = extendedParentFallback;
+            return this;
+        }
+
+        public Builder ajcMethod(Method ajcMethod) {
+            this.ajcMethod = ajcMethod;
             return this;
         }
 
@@ -202,6 +320,26 @@ public class MetaHolder {
 
         public Builder defaultCollapserKey(String defCollapserKey) {
             this.defaultCollapserKey = defCollapserKey;
+            return this;
+        }
+
+        public Builder joinPoint(JoinPoint joinPoint) {
+            this.joinPoint = joinPoint;
+            return this;
+        }
+
+        public Builder extendedFallback(boolean extendedFallback) {
+            this.extendedFallback = extendedFallback;
+            return this;
+        }
+
+        public Builder observable(boolean observable) {
+            this.observable = observable;
+            return this;
+        }
+
+        public Builder observableExecutionMode(ObservableExecutionMode observableExecutionMode) {
+            this.observableExecutionMode = observableExecutionMode;
             return this;
         }
 

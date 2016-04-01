@@ -21,6 +21,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.ThreadSafe;
 
+import static com.netflix.hystrix.contrib.javanica.utils.CommonUtils.createArgsForFallback;
+
 /**
  * Implementation of AbstractHystrixCommand which returns an Object as result.
  */
@@ -68,7 +70,9 @@ public class GenericCommand extends AbstractHystrixCommand<Object> {
                 return process(new Action() {
                     @Override
                     Object execute() {
-                        return commandAction.execute(ExecutionType.SYNCHRONOUS);
+                        MetaHolder metaHolder = commandAction.getMetaHolder();
+                        Object[] args = createArgsForFallback(metaHolder, getFailedExecutionException());
+                        return commandAction.executeWithArgs(commandAction.getMetaHolder().getFallbackExecutionType(), args);
                     }
                 });
             } catch (Throwable e) {

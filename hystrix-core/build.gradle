@@ -3,8 +3,9 @@ apply plugin: 'me.champeau.gradle.jmh'
 
 dependencies {
     compile 'com.netflix.archaius:archaius-core:0.4.1'
-    compile 'io.reactivex:rxjava:1.0.12'
+    compile 'io.reactivex:rxjava:1.1.1'
     compile 'org.slf4j:slf4j-api:1.7.0'
+	compile 'org.hdrhistogram:HdrHistogram:2.1.7'
     testCompile 'junit:junit-dep:4.10'
 }
 
@@ -37,8 +38,8 @@ jar {
 jmh {
 	fork = 10
 	iterations = 3
-	jmhVersion = '1.9.3'
-	//profilers = ['gc']
+	jmhVersion = '1.11.2'
+	profilers = ['gc']
 	threads = 8
 	warmup = '1s'
 	warmupBatchSize = 1

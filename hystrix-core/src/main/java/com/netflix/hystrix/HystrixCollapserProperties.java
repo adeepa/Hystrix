@@ -15,9 +15,10 @@
  */
 package com.netflix.hystrix;
 
-import static com.netflix.hystrix.strategy.properties.HystrixProperty.Factory.asProperty;
+import static com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedProperty.forBoolean;
+import static com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedProperty.forInteger;
+import static com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedProperty.forString;
 
-import com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedArchaiusProperty;
 import com.netflix.hystrix.strategy.properties.HystrixPropertiesStrategy;
 import com.netflix.hystrix.strategy.properties.HystrixProperty;
 import com.netflix.hystrix.util.HystrixRollingNumber;
@@ -72,22 +73,19 @@ public abstract class HystrixCollapserProperties {
     }
 
     private static HystrixProperty<Integer> getProperty(String propertyPrefix, HystrixCollapserKey key, String instanceProperty, Integer builderOverrideValue, Integer defaultValue) {
-        return asProperty(new HystrixPropertiesChainedArchaiusProperty.IntegerProperty(
-                new HystrixPropertiesChainedArchaiusProperty.DynamicIntegerProperty(propertyPrefix + ".collapser." + key.name() + "." + instanceProperty, builderOverrideValue),
-                new HystrixPropertiesChainedArchaiusProperty.DynamicIntegerProperty(propertyPrefix + ".collapser.default." + instanceProperty, defaultValue)));
+        return forInteger()
+              .add(propertyPrefix + ".collapser." + key.name() + "." + instanceProperty, builderOverrideValue)
+              .add(propertyPrefix + ".collapser.default." + instanceProperty, defaultValue)
+              .build();
+              
+
     }
 
     private static HystrixProperty<Boolean> getProperty(String propertyPrefix, HystrixCollapserKey key, String instanceProperty, Boolean builderOverrideValue, Boolean defaultValue) {
-        return asProperty(new HystrixPropertiesChainedArchaiusProperty.BooleanProperty(
-                new HystrixPropertiesChainedArchaiusProperty.DynamicBooleanProperty(propertyPrefix + ".collapser." + key.name() + "." + instanceProperty, builderOverrideValue),
-                new HystrixPropertiesChainedArchaiusProperty.DynamicBooleanProperty(propertyPrefix + ".collapser.default." + instanceProperty, defaultValue)));
-    }
-
-    @SuppressWarnings("unused")
-    private static HystrixProperty<String> getProperty(String propertyPrefix, HystrixCollapserKey key, String instanceProperty, String builderOverrideValue, String defaultValue) {
-        return asProperty(new HystrixPropertiesChainedArchaiusProperty.StringProperty(
-                new HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty(propertyPrefix + ".collapser." + key.name() + "." + instanceProperty, builderOverrideValue),
-                new HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty(propertyPrefix + ".collapser.default." + instanceProperty, defaultValue)));
+        return forBoolean()
+                .add(propertyPrefix + ".collapser." + key.name() + "." + instanceProperty, builderOverrideValue)
+                .add(propertyPrefix + ".collapser.default." + instanceProperty, defaultValue)
+                .build();
     }
 
     /**
@@ -188,6 +186,15 @@ public abstract class HystrixCollapserProperties {
      */
     public static Setter Setter() {
         return new Setter();
+    }
+
+    /**
+     * Factory method to retrieve the default Setter.
+     * Groovy has a bug (GROOVY-6286) which does not allow method names and inner classes to have the same name
+     * This method fixes Issue #967 and allows Groovy consumers to choose this method and not trigger the bug
+     */
+    public static Setter defaultSetter() {
+        return Setter();
     }
 
     /**

@@ -24,15 +24,13 @@ import com.netflix.hystrix.contrib.javanica.cache.HystrixGeneratedCacheKey;
 import com.netflix.hystrix.contrib.javanica.cache.HystrixRequestCacheManager;
 import com.netflix.hystrix.contrib.javanica.cache.annotation.CacheRemove;
 import com.netflix.hystrix.contrib.javanica.cache.annotation.CacheResult;
-import com.netflix.hystrix.contrib.javanica.conf.HystrixPropertiesManager;
 import com.netflix.hystrix.contrib.javanica.exception.CommandActionExecutionException;
 import com.netflix.hystrix.exception.HystrixBadRequestException;
 import com.netflix.hystrix.exception.HystrixRuntimeException;
 
 import javax.annotation.concurrent.ThreadSafe;
-
 import java.util.Collection;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Base class for hystrix commands.
@@ -42,25 +40,22 @@ import java.util.Map;
 @ThreadSafe
 public abstract class AbstractHystrixCommand<T> extends com.netflix.hystrix.HystrixCommand<T> {
 
-    private CommandActions commandActions;
-    private final Map<String, Object> commandProperties;
-    private CacheInvocationContext<CacheResult> cacheResultInvocationContext;
-    private CacheInvocationContext<CacheRemove> cacheRemoveInvocationContext;
+    private final CommandActions commandActions;
+    private final CacheInvocationContext<CacheResult> cacheResultInvocationContext;
+    private final CacheInvocationContext<CacheRemove> cacheRemoveInvocationContext;
     private final Collection<HystrixCollapser.CollapsedRequest<Object, Object>> collapsedRequests;
-    private final Class<? extends Throwable>[] ignoreExceptions;
+    private final List<Class<? extends Throwable>> ignoreExceptions;
     private final ExecutionType executionType;
-    private HystrixCacheKeyGenerator defaultCacheKeyGenerator = HystrixCacheKeyGenerator.getInstance();
+    private final HystrixCacheKeyGenerator defaultCacheKeyGenerator = HystrixCacheKeyGenerator.getInstance();
 
     protected AbstractHystrixCommand(HystrixCommandBuilder builder) {
         super(builder.getSetterBuilder().build());
         this.commandActions = builder.getCommandActions();
-        this.commandProperties = builder.getCommandProperties();
         this.collapsedRequests = builder.getCollapsedRequests();
         this.cacheResultInvocationContext = builder.getCacheResultInvocationContext();
         this.cacheRemoveInvocationContext = builder.getCacheRemoveInvocationContext();
         this.ignoreExceptions = builder.getIgnoreExceptions();
         this.executionType = builder.getExecutionType();
-        HystrixPropertiesManager.setCommandProperties(commandProperties, getCommandKey().name());
     }
 
     /**
@@ -68,7 +63,7 @@ public abstract class AbstractHystrixCommand<T> extends com.netflix.hystrix.Hyst
      *
      * @return command action
      */
-    CommandAction getCommandAction() {
+    protected CommandAction getCommandAction() {
         return commandActions.getCommandAction();
     }
 
@@ -77,18 +72,8 @@ public abstract class AbstractHystrixCommand<T> extends com.netflix.hystrix.Hyst
      *
      * @return fallback action
      */
-    CommandAction getFallbackAction() {
+    protected CommandAction getFallbackAction() {
         return commandActions.getFallbackAction();
-    }
-
-
-    /**
-     * Gets command properties.
-     *
-     * @return command properties
-     */
-    Map<String, Object> getCommandProperties() {
-        return commandProperties;
     }
 
     /**
@@ -96,7 +81,7 @@ public abstract class AbstractHystrixCommand<T> extends com.netflix.hystrix.Hyst
      *
      * @return collapsed requests
      */
-    Collection<HystrixCollapser.CollapsedRequest<Object, Object>> getCollapsedRequests() {
+    protected Collection<HystrixCollapser.CollapsedRequest<Object, Object>> getCollapsedRequests() {
         return collapsedRequests;
     }
 
@@ -105,11 +90,11 @@ public abstract class AbstractHystrixCommand<T> extends com.netflix.hystrix.Hyst
      *
      * @return exceptions types
      */
-    Class<? extends Throwable>[] getIgnoreExceptions() {
+    protected List<Class<? extends Throwable>> getIgnoreExceptions() {
         return ignoreExceptions;
     }
 
-    public ExecutionType getExecutionType() {
+    protected ExecutionType getExecutionType() {
         return executionType;
     }
 
@@ -134,7 +119,7 @@ public abstract class AbstractHystrixCommand<T> extends com.netflix.hystrix.Hyst
      * @return true if exception is ignorable, otherwise - false
      */
     boolean isIgnorable(Throwable throwable) {
-        if (ignoreExceptions == null || ignoreExceptions.length == 0) {
+        if (ignoreExceptions == null || ignoreExceptions.isEmpty()) {
             return false;
         }
         for (Class<? extends Throwable> ignoreException : ignoreExceptions) {

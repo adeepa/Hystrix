@@ -30,6 +30,8 @@ import rx.Subscriber;
 import rx.functions.Action1;
 import rx.functions.Func0;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -44,7 +46,7 @@ import static org.junit.Assert.*;
  * Place to share code and tests between {@link HystrixCommandTest} and {@link HystrixObservableCommandTest}.
  * @param <C>
  */
-public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCommand<?>> {
+public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCommand<Integer>> {
 
     /**
      * Run the command in multiple modes and check that the hook assertions hold in each and that the command succeeds
@@ -114,9 +116,9 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
         System.out.println("Running command.observe(), awaiting terminal state of Observable, then running assertions...");
         final CountDownLatch latch = new CountDownLatch(1);
 
-        Observable<?> o = command.observe();
+        Observable<Integer> o = command.observe();
 
-        o.subscribe(new Subscriber<Object>() {
+        o.subscribe(new Subscriber<Integer>() {
             @Override
             public void onCompleted() {
                 latch.countDown();
@@ -128,7 +130,7 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
             }
 
             @Override
-            public void onNext(Object t) {
+            public void onNext(Integer i) {
                 //do nothing
             }
         });
@@ -155,6 +157,54 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
                 ex.printStackTrace();
             }
         }
+    }
+
+    protected void assertSaneHystrixRequestLog(final int numCommands) {
+        HystrixRequestLog currentRequestLog = HystrixRequestLog.getCurrentRequest();
+
+        try {
+            assertEquals(numCommands, currentRequestLog.getAllExecutedCommands().size());
+            assertFalse(currentRequestLog.getExecutedCommandsAsString().contains("Executed"));
+            assertTrue(currentRequestLog.getAllExecutedCommands().iterator().next().getExecutionEvents().size() >= 1);
+            //Most commands should have 1 execution event, but fallbacks / responses from cache can cause more than 1.  They should never have 0
+        } catch (Throwable ex) {
+            System.out.println("Problematic Request log : " + currentRequestLog.getExecutedCommandsAsString() + " , expected : " + numCommands);
+            throw new RuntimeException(ex);
+        }
+    }
+
+    protected void assertCommandExecutionEvents(HystrixInvokableInfo<?> command, HystrixEventType... expectedEventTypes) {
+        boolean emitExpected = false;
+        int expectedEmitCount = 0;
+
+        boolean fallbackEmitExpected = false;
+        int expectedFallbackEmitCount = 0;
+
+        List<HystrixEventType> condensedEmitExpectedEventTypes = new ArrayList<HystrixEventType>();
+
+        for (HystrixEventType expectedEventType: expectedEventTypes) {
+            if (expectedEventType.equals(HystrixEventType.EMIT)) {
+                if (!emitExpected) {
+                    //first EMIT encountered, add it to condensedEmitExpectedEventTypes
+                    condensedEmitExpectedEventTypes.add(HystrixEventType.EMIT);
+                }
+                emitExpected = true;
+                expectedEmitCount++;
+            } else if (expectedEventType.equals(HystrixEventType.FALLBACK_EMIT)) {
+                if (!fallbackEmitExpected) {
+                    //first FALLBACK_EMIT encountered, add it to condensedEmitExpectedEventTypes
+                    condensedEmitExpectedEventTypes.add(HystrixEventType.FALLBACK_EMIT);
+                }
+                fallbackEmitExpected = true;
+                expectedFallbackEmitCount++;
+            } else {
+                condensedEmitExpectedEventTypes.add(expectedEventType);
+            }
+        }
+        List<HystrixEventType> actualEventTypes = command.getExecutionEvents();
+        assertEquals(expectedEmitCount, command.getNumberEmissions());
+        assertEquals(expectedFallbackEmitCount, command.getNumberFallbackEmissions());
+        assertEquals(condensedEmitExpectedEventTypes, actualEventTypes);
     }
 
     /**
@@ -1009,13 +1059,14 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
      */
     @Test
     public void testExecutionHookResponseFromCache() {
-        getCommand(ExecutionIsolationStrategy.THREAD, ExecutionResult.SUCCESS, 0, FallbackResult.UNIMPLEMENTED, 0, new HystrixCircuitBreakerTest.TestCircuitBreaker(), null, 100, CacheEnabled.YES, 42, 10, 10).observe();
+        final HystrixCommandKey key = HystrixCommandKey.Factory.asKey("Hook-Cache");
+        getCommand(key, ExecutionIsolationStrategy.THREAD, ExecutionResult.SUCCESS, 0, FallbackResult.UNIMPLEMENTED, 0, new HystrixCircuitBreakerTest.TestCircuitBreaker(), null, 100, CacheEnabled.YES, 42, 10, 10).observe();
 
         assertHooksOnSuccess(
                 new Func0<C>() {
                     @Override
                     public C call() {
-                        return getCommand(ExecutionIsolationStrategy.THREAD, ExecutionResult.SUCCESS, 0, FallbackResult.UNIMPLEMENTED, 0, new HystrixCircuitBreakerTest.TestCircuitBreaker(), null, 100, CacheEnabled.YES, 42, 10, 10);
+                        return getCommand(key, ExecutionIsolationStrategy.THREAD, ExecutionResult.SUCCESS, 0, FallbackResult.UNIMPLEMENTED, 0, new HystrixCircuitBreakerTest.TestCircuitBreaker(), null, 100, CacheEnabled.YES, 42, 10, 10);
                     }
                 },
                 new Action1<C>() {
@@ -1029,6 +1080,8 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
                     }
                 });
     }
+
+
 
     /**
      *********************** END THREAD-ISOLATED Execution Hook Tests **************************************
@@ -1463,6 +1516,13 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
         return getCommand(isolationStrategy, executionResult, executionLatency, fallbackResult, fallbackLatency, circuitBreaker, threadPool, timeout, cacheEnabled, value, executionSemaphoreCount, fallbackSemaphoreCount, false);
     }
 
+    private C getCommand(HystrixCommandKey key, ExecutionIsolationStrategy isolationStrategy, ExecutionResult executionResult, int executionLatency, FallbackResult fallbackResult, int fallbackLatency, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker, HystrixThreadPool threadPool, int timeout, CacheEnabled cacheEnabled, Object value, int executionSemaphoreCount, int fallbackSemaphoreCount) {
+        AbstractCommand.TryableSemaphoreActual executionSemaphore = new AbstractCommand.TryableSemaphoreActual(HystrixProperty.Factory.asProperty(executionSemaphoreCount));
+        AbstractCommand.TryableSemaphoreActual fallbackSemaphore = new AbstractCommand.TryableSemaphoreActual(HystrixProperty.Factory.asProperty(fallbackSemaphoreCount));
+
+        return getCommand(key, isolationStrategy, executionResult, executionLatency, fallbackResult, fallbackLatency, circuitBreaker, threadPool, timeout, cacheEnabled, value, executionSemaphore, fallbackSemaphore, false);
+    }
+
     C getCommand(ExecutionIsolationStrategy isolationStrategy, ExecutionResult executionResult, int executionLatency, FallbackResult fallbackResult, int fallbackLatency, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker, HystrixThreadPool threadPool, int timeout, CacheEnabled cacheEnabled, Object value, int executionSemaphoreCount, int fallbackSemaphoreCount, boolean circuitBreakerDisabled) {
         AbstractCommand.TryableSemaphoreActual executionSemaphore = new AbstractCommand.TryableSemaphoreActual(HystrixProperty.Factory.asProperty(executionSemaphoreCount));
         AbstractCommand.TryableSemaphoreActual fallbackSemaphore = new AbstractCommand.TryableSemaphoreActual(HystrixProperty.Factory.asProperty(fallbackSemaphoreCount));
@@ -1475,6 +1535,8 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
     }
 
     abstract C getCommand(ExecutionIsolationStrategy isolationStrategy, ExecutionResult executionResult, int executionLatency, FallbackResult fallbackResult, int fallbackLatency, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker, HystrixThreadPool threadPool, int timeout, CacheEnabled cacheEnabled, Object value, AbstractCommand.TryableSemaphore executionSemaphore, AbstractCommand.TryableSemaphore fallbackSemaphore, boolean circuitBreakerDisabled);
+
+    abstract C getCommand(HystrixCommandKey commandKey, ExecutionIsolationStrategy isolationStrategy, ExecutionResult executionResult, int executionLatency, FallbackResult fallbackResult, int fallbackLatency, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker, HystrixThreadPool threadPool, int timeout, CacheEnabled cacheEnabled, Object value, AbstractCommand.TryableSemaphore executionSemaphore, AbstractCommand.TryableSemaphore fallbackSemaphore, boolean circuitBreakerDisabled);
 
     C getLatentCommand(ExecutionIsolationStrategy isolationStrategy, ExecutionResult executionResult, int executionLatency, FallbackResult fallbackResult, int timeout) {
         return getCommand(isolationStrategy, executionResult, executionLatency, fallbackResult, 0, new HystrixCircuitBreakerTest.TestCircuitBreaker(), null, timeout, CacheEnabled.NO, "foo", 10, 10);
@@ -1489,21 +1551,17 @@ public abstract class CommonHystrixCommandTests<C extends AbstractTestHystrixCom
         return getCommand(isolationStrategy, executionResult, executionLatency, fallbackResult, 0, new HystrixCircuitBreakerTest.TestCircuitBreaker(), null, (executionLatency * 2) + 100, CacheEnabled.NO, "foo", executionSemaphore, fallbackSemaphore, false);
     }
 
-    C getFallbackLatentCommand(ExecutionIsolationStrategy isolationStrategy, FallbackResult fallbackResult, int fallbackLatency, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker, HystrixThreadPool threadPool, AbstractCommand.TryableSemaphore executionSemaphore, AbstractCommand.TryableSemaphore fallbackSemaphore) {
-        return getCommand(isolationStrategy, ExecutionResult.FAILURE, 0, fallbackResult, fallbackLatency, circuitBreaker, threadPool, 10000, CacheEnabled.NO, "foo", executionSemaphore, fallbackSemaphore, true);
-    }
-
     C getCircuitOpenCommand(ExecutionIsolationStrategy isolationStrategy, FallbackResult fallbackResult) {
         HystrixCircuitBreakerTest.TestCircuitBreaker openCircuit = new HystrixCircuitBreakerTest.TestCircuitBreaker().setForceShortCircuit(true);
         return getCommand(isolationStrategy, ExecutionResult.SUCCESS, 0, fallbackResult, 0, openCircuit, null, 100, CacheEnabled.NO, "foo", 10, 10, false);
     }
 
-    C getSharedCircuitBreakerCommand(ExecutionIsolationStrategy isolationStrategy, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker) {
-        return getCommand(isolationStrategy, ExecutionResult.FAILURE, 0, FallbackResult.SUCCESS, 0, circuitBreaker, null, 100, CacheEnabled.NO, "foo", 10, 10);
-    }
-
     C getSharedCircuitBreakerCommand(ExecutionIsolationStrategy isolationStrategy, FallbackResult fallbackResult, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker) {
         return getCommand(isolationStrategy, ExecutionResult.FAILURE, 0, fallbackResult, 0, circuitBreaker, null, 100, CacheEnabled.NO, "foo", 10, 10);
+    }
+
+    C getSharedCircuitBreakerCommand(HystrixCommandKey commandKey, ExecutionIsolationStrategy isolationStrategy, FallbackResult fallbackResult, HystrixCircuitBreakerTest.TestCircuitBreaker circuitBreaker) {
+        return getCommand(commandKey, isolationStrategy, ExecutionResult.FAILURE, 0, fallbackResult, 0, circuitBreaker, null, 100, CacheEnabled.NO, "foo", 10, 10);
     }
 
     C getCircuitBreakerDisabledCommand(ExecutionIsolationStrategy isolationStrategy, ExecutionResult executionResult) {

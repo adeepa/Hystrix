@@ -1,5 +1,214 @@
 # Hystrix Releases #
 
+### Version 1.4.25 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.25%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.25/)) ###
+
+* [Pull 1114](https://github.com/Netflix/Hystrix/pull/1114) Make queue size of MetricsJsonListener configurable
+* [Pull 1121](https://github.com/Netflix/Hystrix/pull/1121) HystrixTimeoutException is non-static for better stacktrace
+
+Artifacts: [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.25%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.25/)
+
+### Version 1.5.1 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.1%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.1/)) ###
+
+* [Pull 1118](https://github.com/Netflix/Hystrix/pull/1118) Revert #1075.  Return userThreadLatency to metrics, mostly to maintain format compatibility with data streams from 1.4.x
+* [Pull 1116](https://github.com/Netflix/Hystrix/pull/1116) Fix references to underscore.js over HTTPS
+* [Pull 1115](https://github.com/Netflix/Hystrix/pull/1115) Fix LICENSE reference in README
+* [Pull 1111](https://github.com/Netflix/Hystrix/pull/1111) HystrixRequestContext implements Closeable
+
+### Version 1.5.0 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0/)) ###
+
+The general premise of this release is to make metrics more flexible within Hystrix. See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring for a deep dive on the new metrics architecture.  The high-level approach is to model metrics directly as a stream, so that Hystrix metrics consumers may aggregate the metrics as they wish. In 1.4.x and prior releases, `HystrixRollingNumber` and `HystrixRollingPercentile` were used to store aggregate command counters and command latencies, respectively.  These are no longer used.  
+
+Instead, new concepts like `HystrixCommandCompletionStream` are present.  These may be consumed by a rolling, summarizing data structure (like `HystrixRollingNumber`), or they may be consumed without any aggregation at all.  This should allow for all metrics processing to move off-box, if you desire to add that piece to your infrastructure.
+
+This version should be backwards-compatible with v1.4.x.  If you find otherwise, please submit a Hystrix issue as it was unintentional.
+
+This version also introduces new metric streams: ([configuration](https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#configuration-stream) and [Utilization](https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#utilization-stream)) have been added, along with a [request-scoped stream](https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#request-streams).
+
+Archaius is now a soft-dependency of Hystrix, so you can supply your own configuration mechanism.
+
+Some known semantic changes:
+* Latencies for timeouts and bad-requests are now included in command latency
+* Latency distribution percentiles are now calculated with HdrHistogram library and don't have a max number of elements in the distribution
+* Previously, HealthCounts data allowed reads to see the value in the "hot" bucket.  (the one currently being written to).  That does not happen anymore - only full read-only buckets are available for reads.
+* Bucket rolling now happens via Rx background threads instead of unlucky Hystrix command threads.  This makes command performance more predictable.  User-thread latency is now practically indistinguishable from command latency.
+
+### Version 1.4.24 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.24%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.24/)) ###
+
+* [Pull 1113](https://github.com/Netflix/Hystrix/pull/1113) Make HystrixRequestContext implement Closeable
+* [Pull 1112](https://github.com/Netflix/Hystrix/pull/1112) Upgrade to latest Nebula Gradle plugin
+* [Pull 1110](https://github.com/Netflix/Hystrix/pull/1110) Upgrade to RxJava 1.1.1
+* [Pull 1108](https://github.com/Netflix/Hystrix/pull/1108) Javanica HystrixRequestCacheManager should use the concurrency strategy 
+
+### Version 1.5.0-rc.5 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0-rc.5%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0-rc.5/)) ###
+
+This version does not have any known bugs, but is not recommended for production use until 1.5.0.
+
+Included changes: 
+
+* [Pull 1102](https://github.com/Netflix/Hystrix/pull/1102) Bugfix to null check on HystrixRequestCache context
+
+### Version 1.5.0-rc.4 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0-rc.4%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0-rc.4/)) ###
+
+This version does not have any known bugs, but is not recommended for production use until 1.5.0.
+
+Included changes: 
+
+* [Pull 1099](https://github.com/Netflix/Hystrix/pull/1099) Bugfix to get Hystrix dashboard operational again
+
+### Version 1.5.0-rc.3 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0-rc.3%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0-rc.3/)) ###
+
+This version does not have any known bugs, but is not recommended for production use until 1.5.0.
+
+A few dependency bumps, but the major change here is that Archaius is now a soft dependency of hystrix-core.  Thanks to @agentgt for the PR!. Thanks also to @caarlos0 for the NPE fix in HystrixRequestCache.
+ 
+Included changes: 
+
+* [Pull 1079](https://github.com/Netflix/Hystrix/pull/1079) Remove dynamic config lookup in HystrixThreadPool
+* [Pull 1081](https://github.com/Netflix/Hystrix/pull/1081) Cleanup hystrix-javanica BadRequest docs
+* [Pull 1093](https://github.com/Netflix/Hystrix/pull/1093) Fix NPE in HystrixRequestCache when HystrixRequestContext not initialized
+* [Pull 1083](https://github.com/Netflix/Hystrix/pull/1083) Made Archaius a soft dependency of hystrix-core.  It is now possible to run without Archaius and rely on j.u.l.ServiceLoader or system properties only
+* [Pull 1095](https://github.com/Netflix/Hystrix/pull/1095) Upgrade to Nebula netflixoss 3.2.3
+* [Pull 1096](https://github.com/Netflix/Hystrix/pull/1096) Upgrade to RxJava 1.1.1
+* [Pull 1097](https://github.com/Netflix/Hystrix/pull/1097) Fix POM generation by excluding WAR artifacts
+
+### Version 1.5.0-rc.2 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0-rc.2%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0-rc.2/)) ###
+
+This version does not have any known bugs, but is not recommended for production use until 1.5.0.
+
+This is mostly a new set of features building on top of Release Candidate 1.  Specifically, some sample streams ([Configuration](https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#configuration-stream) and [Utilization](https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#utilization-stream)) have been added, along with a [request-scoped stream](https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#request-streams).
+ 
+Included changes: 
+
+* [Pull 1050](https://github.com/Netflix/Hystrix/pull/1050) Modular command construction
+* [Pull 1061](https://github.com/Netflix/Hystrix/pull/1061) Sample config/utilization streams, and request-scoped streams
+* [Pull 1064](https://github.com/Netflix/Hystrix/pull/1064) Safer enum references in case mismatched Hystrix jars are deployed together
+* [Pull 1066](https://github.com/Netflix/Hystrix/pull/1066) Layer of abstraction on top of ThreadFactory, so AppEngine can run Hystrix
+* [Pull 1067](https://github.com/Netflix/Hystrix/pull/1067) Decouple sample stream JSON from servlets
+* [Pull 1067](https://github.com/Netflix/Hystrix/pull/1068) Decouple request-scoped stream JSON from servlets
+* [Pull 1075](https://github.com/Netflix/Hystrix/pull/1075) Deprecate userThreadLatency, since it is practically identical to executionLatency now
+
+### Version 1.5.0-rc.1 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0-rc.1%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0-rc.1/)) ###
+
+This version does not have any known bugs, but *is not* recommended for production use until 1.5.0.
+
+The general premise of this release is to make metrics more flexible within Hystrix. See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring for a deep dive on the new metrics architecture.  The high-level view is to make the metrics primitive a stream instead of an aggregate.  In 1.4.x and prior releases, `HystrixRollingNumber` and `HystrixRollingPercentile` were used to store aggregate command counters and command latencies, respectively.  These are no longer used.  
+
+Instead, new concepts like `HystrixCommandCompletionStream` are present.  These may be consumed by a rolling, summarizing data structure (like `HystrixRollingNumber`), or they may be consumed without any aggregation at all.  This should allow for all metrics processing to move off-box, if you desire to add that piece to your infrastructure.
+
+This version should be backwards-compatible with v1.4.x.  If you find otherwise, please submit a Hystrix issue as it was unintentional.
+
+Some known semantic changes:
+* Latencies for timeouts and bad-requests are now included in command latency
+* Latency distribution percentiles are now calculated with HdrHistogram library and don't have a max number of elements in the distribution
+* Previously, HealthCounts data allowed reads to see the value in the "hot" bucket.  (the one currently being written to).  That does not happen anymore - only full read-only buckets are available for reads.
+* Bucket rolling now happens via Rx background threads instead of unlucky Hystrix command threads.  This makes command performance more predictable.  User-thread latency is now practically indistinguishable from command latency.
+
+Artifacts: [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.5.0-rc.1%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.5.0-rc.1/)
+
+### Version 1.4.23 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.23%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.23/)) ###
+
+* [Pull 1032](https://github.com/Netflix/Hystrix/pull/1032) Make number of timer threads a piece of config (with Archaius integration)
+* [Pull 1045](https://github.com/Netflix/Hystrix/pull/1045) Documentation cleanup in HystrixCommandProperties
+* [Pull 1044](https://github.com/Netflix/Hystrix/pull/1044) Add request context and HystrixObservableCommand to command execution JMH tests
+* [Pull 1043](https://github.com/Netflix/Hystrix/pull/1043) HystrixObservableCollapser emits error to each submitter when batch command encounters error
+* [Pull 1039](https://github.com/Netflix/Hystrix/pull/1039) Use thread-safe data structure for storing list of command keys per-thread
+* [Pull 1036](https://github.com/Netflix/Hystrix/pull/1036) Remove redundant ConcurrentHashMap read when getting name from command class
+* [Pull 1035](https://github.com/Netflix/Hystrix/pull/1035) Rename command execution JMH tests
+* [Pull 1034](https://github.com/Netflix/Hystrix/pull/1034) Remove SHORT_CIRCUITED events from health counts calculation 
+* [Pull 1027](https://github.com/Netflix/Hystrix/pull/1027) Fix typo in hystrix-examples-webapp documentation
+
+### Version 1.4.22 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.22%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.22/)) ###
+
+* [Pull 1019](https://github.com/Netflix/Hystrix/pull/1019) hystrix-dashboard: Swap magnifying glass logos
+* [Commit 41e9c210f044fe822625acc6e23c5167e56c3f09](https://github.com/Netflix/Hystrix/commit/41e9c210f044fe822625acc6e23c5167e56c3f09) Add OSSMETADATA
+* [Pull 1014](https://github.com/Netflix/Hystrix/pull/1014) Upgrade to RxJava 1.1.0
+* [Pull 1009](https://github.com/Netflix/Hystrix/pull/1009) hystrix-javanica: Upgrade to AspectJ 1.8.6
+* [Pull 1008](https://github.com/Netflix/Hystrix/pull/1008) Add AbstractCommand.getExecutionException
+* [Pull 1006](https://github.com/Netflix/Hystrix/pull/1006) Add Cobertura plugin
+* [Pull 1005](https://github.com/Netflix/Hystrix/pull/1005) Upgrade RxJava to 1.0.17
+* [Pull 1000](https://github.com/Netflix/Hystrix/pull/1000) Fix network-auditor Javadoc
+* [Pull 999](https://github.com/Netflix/Hystrix/pull/999) Upgrade Javassist within hystrix-network-auditor-agent
+* [Pull 992](https://github.com/Netflix/Hystrix/pull/992) hystrix-dashboard: Remove validation error message when adding a stream
+* [Pull 977](https://github.com/Netflix/Hystrix/pull/977) hystrix-javanica support for Observable command
+
+### Version 1.4.21 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.21%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.21/)) ###
+
+* [Pull 978](https://github.com/Netflix/Hystrix/pull/978) Upgrade commons-collections to 3.2.2
+* [Pull 959](https://github.com/Netflix/Hystrix/pull/959) Support multiple metric streams in hystrix-dashboard
+* [Pull 976](https://github.com/Netflix/Hystrix/pull/976) Prevent execution observable from running when hook throws an error in onXXXStart 
+* [Pull 972](https://github.com/Netflix/Hystrix/pull/972) Mark servlet-api dependency as 'provided'
+* [Pull 968](https://github.com/Netflix/Hystrix/pull/968) Add defaultSetter() to properties classes to workaround GROOVY-6286
+
+### Version 1.4.20 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.20%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.20/)) ###
+
+* [Pull 965](https://github.com/Netflix/Hystrix/pull/965) Upgrade Nebula Gradle plugin
+* [Pull 962](https://github.com/Netflix/Hystrix/pull/962) Javanica: Support for async commands
+* [Pull 960](https://github.com/Netflix/Hystrix/pull/960) Avoid Clojure reflection in hystrix-clj
+* [Pull 957](https://github.com/Netflix/Hystrix/pull/957) Javanica: Fix threadpool properties
+* [Pull 956](https://github.com/Netflix/Hystrix/pull/956) Upgrade JMH from 1.10.3 to 1.11.1
+* [Pull 945](https://github.com/Netflix/Hystrix/pull/945) Javanica: Compile-time weaving support
+* [Pull 952](https://github.com/Netflix/Hystrix/pull/952) Tolerate lack of RequestContext better for custom concurrency strategies
+* [Pull 947](https://github.com/Netflix/Hystrix/pull/947) Upgrade RxNetty to 0.4.12 for RxNetty metrics stream
+* [Pull 946](https://github.com/Netflix/Hystrix/pull/946) More extension-friendly Yammer metrics publisher
+* [Pull 944](https://github.com/Netflix/Hystrix/pull/944) Fix generated POM to include dependencies in 'compile' scope
+* [Pull 942](https://github.com/Netflix/Hystrix/pull/942) Fix metrics stream fallbackEmit metric
+* [Pull 941](https://github.com/Netflix/Hystrix/pull/941) Add FALLBACK_MISSING event type and metric
+
+### Version 1.4.19 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.19%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.19/)) ###
+
+This version should be the exact same as 1.4.20, but suffered problems during the publishing process.  Please use 1.4.20 instead.
+
+### Version 1.4.18 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.18%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.18/)) ###
+
+* [Pull 934](https://github.com/Netflix/Hystrix/pull/934) Remove duplicate EventSource from dashboard
+* [Pull 931](https://github.com/Netflix/Hystrix/pull/931) Make HystrixTimeoutException public
+* [Pull 930](https://github.com/Netflix/Hystrix/pull/930) Support collapser metrics in HystrixMetricPublisher implementations
+* [Pull 927](https://github.com/Netflix/Hystrix/pull/927) Dashboard fix to isCircuitBreakerOpen
+
+### Version 1.4.17 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.17%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.17/)) ###
+
+* [Pull 924](https://github.com/Netflix/Hystrix/pull/924) Dashboard protection against XSS
+* [Pull 923](https://github.com/Netflix/Hystrix/pull/923) Upgrade to RxJava 1.0.14
+* [Pull 922](https://github.com/Netflix/Hystrix/pull/922) Add DEBUG tag to Servo rolling counter and made it a GaugeMetric
+
+### Version 1.4.16 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.16%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.16/)) ###
+
+* [Pull 917](https://github.com/Netflix/Hystrix/pull/917) Better version of making servo-metrics-publisher extension-friendly
+* [Pull 912](https://github.com/Netflix/Hystrix/pull/912) Only look up if HystrixRequestCache is enabled once per HystrixObservableCollapser-invocation
+* [Pull 911](https://github.com/Netflix/Hystrix/pull/911) Unit test for large threadpool/small queue case in command execution
+* [Pull 910](https://github.com/Netflix/Hystrix/pull/910) Make servo-metrics-publisher more extension-friendly
+* [Pull 905](https://github.com/Netflix/Hystrix/pull/905) HystrixObservableCollapser examples
+* [Pull 902](https://github.com/Netflix/Hystrix/pull/902) Cleanup HystrixObservableCollapser unit tests
+* [Pull 900](https://github.com/Netflix/Hystrix/pull/900) Remove commons-collections dependency from hystrix-javanica
+* [Pull 897](https://github.com/Netflix/Hystrix/pull/897) Fix missing null check in hystrix-javanica HystrixCacheKeyGenerator
+
+### Version 1.4.15 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.15%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.15/)) ###
+
+* [Pull 890](https://github.com/Netflix/Hystrix/pull/890) Allow multiple responses per collapser argument.  No semantic change for HystrixCollapser, but a bugfix to HystrixObservableCollapser
+* [Pull 892](https://github.com/Netflix/Hystrix/pull/892) Cache Setter in MultithreadedMetricsPerfTest
+* [Pull 891](https://github.com/Netflix/Hystrix/pull/891) Add request context to command JMH tests
+* [Pull 889](https://github.com/Netflix/Hystrix/pull/889) Replace subscribe() in RequestBatch with unsafeUnsubscribe()
+* [Pull 887](https://github.com/Netflix/Hystrix/pull/887) Only look up if HystrixRequestCache is enabled once per collapser-invocation
+* [Pull 885](https://github.com/Netflix/Hystrix/pull/885) Only look up if HystrixRequestCache is enabled once per command-invocation
+* [Pull 876](https://github.com/Netflix/Hystrix/pull/876) Report BAD_REQUEST to HystrixRequestLog
+* [Pull 861](https://github.com/Netflix/Hystrix/pull/861) Make hystrix-javanica OSGI-compliant
+* [Pull 856](https://github.com/Netflix/Hystrix/pull/856) Add missing licenses
+* [Pull 855](https://github.com/Netflix/Hystrix/pull/855) Save allocation if using a convenience constructor for HystrixCommand
+* [Pull 853](https://github.com/Netflix/Hystrix/pull/853) Run Travis build in a container
+* [Pull 848](https://github.com/Netflix/Hystrix/pull/848) Unit tests to demonstrate HystrixRequestLog was not experiencing data races
+
+### Version 1.4.14 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.14%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.14/)) ###
+
+* [Pull 852](https://github.com/Netflix/Hystrix/pull/852) Fix hystrix-clj that was blocking http://dev.clojure.org/jira/browse/CLJ-1232
+* [Pull 849](https://github.com/Netflix/Hystrix/pull/849) Unit tests for HystrixCommands that are part of a class hierarchy with other HystrixCommands
+
+### Version 1.4.13 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.13%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.13/)) ###
+
+* [Pull 839](https://github.com/Netflix/Hystrix/pull/839) Fix typo in hystrix-dashboard js
+* [Pull 838](https://github.com/Netflix/Hystrix/pull/838) Add back unit tests for Hystrix class and its reset() method in particular
+* [Pull 837](https://github.com/Netflix/Hystrix/pull/837) Upgrade to RxJava 1.0.13
+* [Pull 830](https://github.com/Netflix/Hystrix/pull/830) Add validation for rollingCountBadRequest in hystrix-dashboard
+
 ### Version 1.4.12 ([Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.netflix.hystrix%22%20AND%20v%3A%221.4.12%22), [Bintray](https://bintray.com/netflixoss/maven/Hystrix/1.4.12/)) ###
 
 * [Pull 826](https://github.com/Netflix/Hystrix/pull/826) Safely handle negative input for delay parameter to metrics stream servlet

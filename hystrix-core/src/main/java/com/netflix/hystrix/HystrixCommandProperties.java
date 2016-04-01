@@ -15,15 +15,16 @@
  */
 package com.netflix.hystrix;
 
-import static com.netflix.hystrix.strategy.properties.HystrixProperty.Factory.asProperty;
+import static com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedProperty.forBoolean;
+import static com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedProperty.forInteger;
+import static com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedProperty.forString;
 
 import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedArchaiusProperty;
-import com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty;
+import com.netflix.hystrix.strategy.properties.HystrixDynamicProperty;
 import com.netflix.hystrix.strategy.properties.HystrixPropertiesStrategy;
 import com.netflix.hystrix.strategy.properties.HystrixProperty;
 import com.netflix.hystrix.util.HystrixRollingNumber;
@@ -42,7 +43,7 @@ public abstract class HystrixCommandProperties {
     private static final Integer default_metricsRollingStatisticalWindowBuckets = 10;// default => statisticalWindowBuckets: 10 = 10 buckets in a 10 second window so each bucket is 1 second
     private static final Integer default_circuitBreakerRequestVolumeThreshold = 20;// default => statisticalWindowVolumeThreshold: 20 requests in 10 seconds must occur before statistics matter
     private static final Integer default_circuitBreakerSleepWindowInMilliseconds = 5000;// default => sleepWindow: 5000 = 5 seconds that we will sleep before trying again after tripping the circuit
-    private static final Integer default_circuitBreakerErrorThresholdPercentage = 50;// default => errorThresholdPercentage = 50 = if 50%+ of requests in 10 seconds are failures or latent when we will trip the circuit
+    private static final Integer default_circuitBreakerErrorThresholdPercentage = 50;// default => errorThresholdPercentage = 50 = if 50%+ of requests in 10 seconds are failures or latent then we will trip the circuit
     private static final Boolean default_circuitBreakerForceOpen = false;// default => forceCircuitOpen = false (we want to allow traffic)
     /* package */ static final Boolean default_circuitBreakerForceClosed = false;// default => ignoreErrors = false 
     private static final Integer default_executionTimeoutInMilliseconds = 1000; // default => executionTimeoutInMilliseconds: 1000 = 1 second
@@ -134,7 +135,7 @@ public abstract class HystrixCommandProperties {
         this.requestLogEnabled = getProperty(propertyPrefix, key, "requestLog.enabled", builder.getRequestLogEnabled(), default_requestLogEnabled);
 
         // threadpool doesn't have a global override, only instance level makes sense
-        this.executionIsolationThreadPoolKeyOverride = asProperty(new DynamicStringProperty(propertyPrefix + ".command." + key.name() + ".threadPoolKeyOverride", null));
+        this.executionIsolationThreadPoolKeyOverride = forString().add(propertyPrefix + ".command." + key.name() + ".threadPoolKeyOverride", null).build();
     }
 
     /**
@@ -412,22 +413,25 @@ public abstract class HystrixCommandProperties {
     }
 
     private static HystrixProperty<Boolean> getProperty(String propertyPrefix, HystrixCommandKey key, String instanceProperty, Boolean builderOverrideValue, Boolean defaultValue) {
-        return asProperty(new HystrixPropertiesChainedArchaiusProperty.BooleanProperty(
-                new HystrixPropertiesChainedArchaiusProperty.DynamicBooleanProperty(propertyPrefix + ".command." + key.name() + "." + instanceProperty, builderOverrideValue),
-                new HystrixPropertiesChainedArchaiusProperty.DynamicBooleanProperty(propertyPrefix + ".command.default." + instanceProperty, defaultValue)));
+        return forBoolean()
+                .add(propertyPrefix + ".command." + key.name() + "." + instanceProperty, builderOverrideValue)
+                .add(propertyPrefix + ".command.default." + instanceProperty, defaultValue)
+                .build();
     }
 
     private static HystrixProperty<Integer> getProperty(String propertyPrefix, HystrixCommandKey key, String instanceProperty, Integer builderOverrideValue, Integer defaultValue) {
-        return asProperty(new HystrixPropertiesChainedArchaiusProperty.IntegerProperty(
-                new HystrixPropertiesChainedArchaiusProperty.DynamicIntegerProperty(propertyPrefix + ".command." + key.name() + "." + instanceProperty, builderOverrideValue),
-                new HystrixPropertiesChainedArchaiusProperty.DynamicIntegerProperty(propertyPrefix + ".command.default." + instanceProperty, defaultValue)));
+        return forInteger()
+                .add(propertyPrefix + ".command." + key.name() + "." + instanceProperty, builderOverrideValue)
+                .add(propertyPrefix + ".command.default." + instanceProperty, defaultValue)
+                .build();
     }
 
     @SuppressWarnings("unused")
     private static HystrixProperty<String> getProperty(String propertyPrefix, HystrixCommandKey key, String instanceProperty, String builderOverrideValue, String defaultValue) {
-        return asProperty(new HystrixPropertiesChainedArchaiusProperty.StringProperty(
-                new HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty(propertyPrefix + ".command." + key.name() + "." + instanceProperty, builderOverrideValue),
-                new HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty(propertyPrefix + ".command.default." + instanceProperty, defaultValue)));
+        return forString()
+                .add(propertyPrefix + ".command." + key.name() + "." + instanceProperty, builderOverrideValue)
+                .add(propertyPrefix + ".command.default." + instanceProperty, defaultValue)
+                .build();
     }
 
     private static HystrixProperty<ExecutionIsolationStrategy> getProperty(final String propertyPrefix, final HystrixCommandKey key, final String instanceProperty, final ExecutionIsolationStrategy builderOverrideValue, final ExecutionIsolationStrategy defaultValue) {
@@ -439,7 +443,7 @@ public abstract class HystrixCommandProperties {
      * HystrixProperty that converts a String to ExecutionIsolationStrategy so we remain TypeSafe.
      */
     private static final class ExecutionIsolationStrategyHystrixProperty implements HystrixProperty<ExecutionIsolationStrategy> {
-        private final HystrixPropertiesChainedArchaiusProperty.StringProperty property;
+        private final HystrixDynamicProperty<String> property;
         private volatile ExecutionIsolationStrategy value;
         private final ExecutionIsolationStrategy defaultValue;
 
@@ -449,9 +453,10 @@ public abstract class HystrixCommandProperties {
             if (builderOverrideValue != null) {
                 overrideValue = builderOverrideValue.name();
             }
-            property = new HystrixPropertiesChainedArchaiusProperty.StringProperty(
-                    new HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty(propertyPrefix + ".command." + key.name() + "." + instanceProperty, overrideValue),
-                    new HystrixPropertiesChainedArchaiusProperty.DynamicStringProperty(propertyPrefix + ".command.default." + instanceProperty, defaultValue.name()));
+            property = forString()
+                    .add(propertyPrefix + ".command." + key.name() + "." + instanceProperty, overrideValue)
+                    .add(propertyPrefix + ".command.default." + instanceProperty, defaultValue.name())
+                    .build();
 
             // initialize the enum value from the property
             parseProperty();
@@ -489,6 +494,15 @@ public abstract class HystrixCommandProperties {
      */
     public static Setter Setter() {
         return new Setter();
+    }
+
+    /**
+     * Factory method to retrieve the default Setter.
+     * Groovy has a bug (GROOVY-6286) which does not allow method names and inner classes to have the same name
+     * This method fixes Issue #967 and allows Groovy consumers to choose this method and not trigger the bug
+     */
+    public static Setter defaultSetter() {
+        return Setter();
     }
 
     /**
@@ -749,8 +763,5 @@ public abstract class HystrixCommandProperties {
             this.requestLogEnabled = value;
             return this;
         }
-
     }
-
-
 }

@@ -66,6 +66,14 @@ public class HystrixRequestCacheTest {
         }
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void testCacheWithoutContext() {
+        HystrixRequestCache.getInstance(
+            HystrixCommandKey.Factory.asKey("command1"),
+            HystrixConcurrencyStrategyDefault.getInstance()
+        ).get("any");
+    }
+
     @Test
     public void testClearCache() {
         HystrixConcurrencyStrategy strategy = HystrixConcurrencyStrategyDefault.getInstance();
@@ -81,6 +89,21 @@ public class HystrixRequestCacheTest {
             e.printStackTrace();
         } finally {
             context.shutdown();
+        }
+    }
+
+    @Test
+    public void testCacheWithoutRequestContext() {
+        HystrixConcurrencyStrategy strategy = HystrixConcurrencyStrategyDefault.getInstance();
+        //HystrixRequestContext context = HystrixRequestContext.initializeContext();
+        try {
+            HystrixRequestCache cache1 = HystrixRequestCache.getInstance(HystrixCommandKey.Factory.asKey("command1"), strategy);
+            //this should fail, as there's no HystrixRequestContext instance to place the cache into
+            cache1.putIfAbsent("valueA", new TestObservable("a1"));
+            fail("should throw an exception on cache put");
+        } catch (Exception e) {
+            //expected
+            e.printStackTrace();
         }
     }
 
